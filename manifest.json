@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Chess Coordinate Trainer",
+  "version": "1.0",
+  "description": "Shows destination square coordinates when pieces move on Chess.com",
+  "content_scripts": [
+    {
+      "matches": ["https://www.chess.com/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

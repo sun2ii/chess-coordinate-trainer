@@ -1,0 +1,260 @@
+/* Hide ads */
+#sidebar-ad,
+.skyscraper-ad-component {
+  display: none !important;
+}
+
+/* Override Chess.com's board edge coordinates */
+.coordinate-grey {
+  font-size: 4.5px !important;
+  font-weight: bold !important;
+  text-transform: uppercase !important;
+  transition: fill 0.15s ease-out, filter 0.15s ease-out;
+}
+
+.coordinate-grey.coord-glow {
+  fill: #fff !important;
+  filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 6px #0af) drop-shadow(0 0 9px #0af);
+}
+
+/* Status tooltip */
+.coord-trainer-tooltip {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+  display: flex;
+  gap: 16px;
+}
+
+.coord-trainer-tooltip.visible {
+  opacity: 1;
+}
+
+.coord-trainer-tooltip .label {
+  color: #888;
+  margin-right: 4px;
+}
+
+.coord-trainer-tooltip .value {
+  color: #fff;
+  text-transform: capitalize;
+}
+
+.coord-overlay {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12.5%;
+  height: 12.5%;
+  font-size: clamp(1rem, 3vw, 2.5rem);
+  font-weight: bold;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 1;
+  transition: opacity 0.4s ease-out;
+}
+
+.coord-overlay.fade-out {
+  opacity: 0;
+}
+
+/* File (letter) black, Rank (number) white */
+.coord-file {
+  color: #000;
+  text-shadow: 0 0 2px #fff, 0 0 4px #fff;
+}
+
+.coord-rank {
+  color: #fff;
+  text-shadow: 0 0 2px #000, 0 0 4px #000;
+}
+
+/* Quadrant background colors for coordinate labels */
+.coord-overlay.red { background: rgba(255, 0, 0, 0.6); }
+.coord-overlay.green { background: rgba(0, 200, 0, 0.6); }
+.coord-overlay.blue { background: rgba(0, 100, 255, 0.6); }
+.coord-overlay.purple { background: rgba(180, 0, 255, 0.6); }
+
+/* ========================================
+   OVERLAY CONTAINERS (all modes)
+   ======================================== */
+.overlay-container {
+  position: absolute;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+  z-index: 500;
+}
+
+.overlay-container.visible {
+  display: grid;
+}
+
+/* ========================================
+   MODE 1: QUADRANTS (4 regions)
+   ======================================== */
+.overlay-quadrants {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.quadrant-red {
+  grid-area: 2 / 1;
+  background: rgb(255, 0, 0);
+  mix-blend-mode: color;
+  opacity: 0.3;
+}
+.quadrant-green {
+  grid-area: 2 / 2;
+  background: rgb(0, 200, 0);
+  mix-blend-mode: color;
+  opacity: 0.3;
+}
+.quadrant-purple {
+  grid-area: 1 / 1;
+  background: rgb(180, 0, 255);
+  mix-blend-mode: color;
+  opacity: 0.3;
+}
+.quadrant-blue {
+  grid-area: 1 / 2;
+  background: rgb(0, 100, 255);
+  mix-blend-mode: color;
+  opacity: 0.3;
+}
+
+/* Flipped board */
+.flipped .quadrant-red { grid-area: 1 / 2; }
+.flipped .quadrant-green { grid-area: 1 / 1; }
+.flipped .quadrant-purple { grid-area: 2 / 2; }
+.flipped .quadrant-blue { grid-area: 2 / 1; }
+
+/* ========================================
+   MODE 2: FLANKS (Queenside vs Kingside)
+   ======================================== */
+.overlay-flanks {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+.flank-queenside {
+  grid-area: 1 / 1;
+  background: rgb(255, 100, 0);
+  mix-blend-mode: color;
+  opacity: 0.35;
+}
+.flank-kingside {
+  grid-area: 1 / 2;
+  background: rgb(0, 200, 255);
+  mix-blend-mode: color;
+  opacity: 0.35;
+}
+
+/* Flipped board */
+.flipped .flank-queenside { grid-area: 1 / 2; }
+.flipped .flank-kingside { grid-area: 1 / 1; }
+
+/* ========================================
+   MODE 3: RANKS (Your half vs Their half)
+   ======================================== */
+.overlay-ranks {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.rank-lower {
+  grid-area: 2 / 1;
+  background: rgb(255, 150, 0);
+  mix-blend-mode: color;
+  opacity: 0.35;
+}
+.rank-upper {
+  grid-area: 1 / 1;
+  background: rgb(0, 150, 255);
+  mix-blend-mode: color;
+  opacity: 0.35;
+}
+
+/* Flipped board */
+.flipped .rank-lower { grid-area: 1 / 1; }
+.flipped .rank-upper { grid-area: 2 / 1; }
+
+/* ========================================
+   MODE 4: FILES (8 vertical stripes)
+   ======================================== */
+.overlay-files {
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: 1fr;
+}
+
+.file-stripe {
+  mix-blend-mode: color;
+  opacity: 0.3;
+}
+
+.file-1 { background: rgb(255, 0, 0); }
+.file-2 { background: rgb(255, 127, 0); }
+.file-3 { background: rgb(255, 255, 0); }
+.file-4 { background: rgb(0, 255, 0); }
+.file-5 { background: rgb(0, 255, 255); }
+.file-6 { background: rgb(0, 127, 255); }
+.file-7 { background: rgb(127, 0, 255); }
+.file-8 { background: rgb(255, 0, 255); }
+
+/* Flipped board - reverse file order */
+.flipped .file-1 { order: 8; }
+.flipped .file-2 { order: 7; }
+.flipped .file-3 { order: 6; }
+.flipped .file-4 { order: 5; }
+.flipped .file-5 { order: 4; }
+.flipped .file-6 { order: 3; }
+.flipped .file-7 { order: 2; }
+.flipped .file-8 { order: 1; }
+
+/* ========================================
+   MODE 5: CENTER vs EDGE
+   ======================================== */
+.overlay-center {
+  display: none;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.overlay-center.visible {
+  display: block;
+}
+
+.center-edge {
+  position: absolute;
+  inset: 0;
+  background: rgb(100, 100, 100);
+  mix-blend-mode: color;
+  opacity: 0.25;
+}
+
+.center-core {
+  position: absolute;
+  top: 25%;
+  left: 25%;
+  width: 50%;
+  height: 50%;
+  background: rgb(255, 215, 0);
+  mix-blend-mode: color;
+  opacity: 0.35;
+}
