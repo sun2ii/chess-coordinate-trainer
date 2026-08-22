@@ -1,9 +1,53 @@
 (function () {
   'use strict';
 
+  // ==========================================================================
+  // 64-COLOR COORDINATE LEARNING SYSTEM (ROYGBIV)
+  // ==========================================================================
+  //
+  // File hues (ROYGBIV + Pink):
+  //   A: 0° (Red)        E: 210° (Blue)
+  //   B: 30° (Orange)    F: 260° (Indigo)
+  //   C: 60° (Yellow)    G: 290° (Violet)
+  //   D: 120° (Green)    H: 330° (Pink)
+  //
+  // Rank lightness (linear gradient, light to dark):
+  //   Rank 1: L=0.90 (lightest)
+  //   Rank 2: L=0.81
+  //   Rank 3: L=0.73
+  //   Rank 4: L=0.64
+  //   Rank 5: L=0.56
+  //   Rank 6: L=0.47
+  //   Rank 7: L=0.39
+  //   Rank 8: L=0.30 (darkest)
+  //
+  const SQUARE_COLORS = {
+    a1: '#FFB2DA', a2: '#FF96BE', a3: '#F17BA3', a4: '#D36189', a5: '#B64670', a6: '#992B58', a7: '#7D0841', a8: '#61002B',
+    b1: '#FFB6A2', b2: '#FF9A87', b3: '#F77F6D', b4: '#D96454', b5: '#BB4A3B', b6: '#9E2E22', b7: '#810C04', b8: '#650000',
+    c1: '#FFC570', c2: '#FFA953', c3: '#EA8E34', c4: '#CD7303', c5: '#B15900', c6: '#943F00', c7: '#792400', c8: '#5E0300',
+    d1: '#D1ED74', d2: '#B6D057', d3: '#9CB438', d4: '#82990B', d5: '#697F00', d6: '#526500', d7: '#3B4D00', d8: '#273500',
+    e1: '#2BF8FF', e2: '#00DBF7', e3: '#00BFDB', e4: '#00A4BF', e5: '#0089A4', e6: '#006E89', e7: '#00556F', e8: '#003C56',
+    f1: '#A3DFFF', f2: '#88C2FF', f3: '#6EA6FF', f4: '#548BE7', f5: '#3B71CA', f6: '#2257AE', f7: '#053D92', f8: '#002377',
+    g1: '#DDCCFF', g2: '#C1B0FF', g3: '#A795FE', g4: '#8D7AE1', g5: '#7460C4', g6: '#5D46A8', g7: '#472D8C', g8: '#320F71',
+    h1: '#FFB9FF', h2: '#F89DF0', h3: '#DB82D4', h4: '#BE68B8', h5: '#A34E9D', h6: '#873482', h7: '#6C1869', h8: '#520050',
+  };
+
+  // Get the unique color for a chess square
+  function getSquareColor(squareNum) {
+    const fileIndex = Math.floor(squareNum / 10); // 1-8
+    const rank = squareNum % 10; // 1-8
+    const file = 'abcdefgh'[fileIndex - 1];
+    const square = file + rank;
+    return SQUARE_COLORS[square] || '#808080'; // fallback gray
+  }
+
   // Overlay modes: Q cycles through these
-  const MODES = ['off', 'flanks', 'ranks'];
-  let currentMode = 1;
+  // off = no overlay
+  // flanks = queenside (orange) vs kingside (cyan) - left/right split
+  // ranks = your half (orange) vs their half (blue) - bottom/top split
+  // colors = 64-color overlay with full coordinates (A1, B2, etc.)
+  const MODES = ['off', 'flanks', 'ranks', 'colors'];
+  let currentMode = 0; // Start with off
 
   // Coordinate display modes: W cycles through these
   const COORD_MODES = ['full', 'file', 'rank']; // A1, A, 1
@@ -66,17 +110,14 @@
     return board.classList.contains('flipped');
   }
 
-  // Get quadrant color based on square position
-  function getQuadrantColor(squareNum) {
-    const file = Math.floor(squareNum / 10);
-    const rank = squareNum % 10;
-    const isQueenside = file <= 4;
-    const isLowerHalf = rank <= 4;
-
-    if (isQueenside && isLowerHalf) return 'red';
-    if (!isQueenside && isLowerHalf) return 'green';
-    if (isQueenside) return 'purple';
-    return 'blue';
+  // Get text color (white or black) based on background luminance
+  function getTextColor(hexColor) {
+    const r = parseInt(hexColor.slice(1, 3), 16);
+    const g = parseInt(hexColor.slice(3, 5), 16);
+    const b = parseInt(hexColor.slice(5, 7), 16);
+    // Relative luminance formula
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
   }
 
   // Calculate overlay position based on square and board orientation
@@ -195,7 +236,7 @@
         el.classList.add('coord-glow');
         setTimeout(() => {
           el.classList.remove('coord-glow');
-        }, 700);
+        }, 1500);
       }
     });
   }
@@ -218,14 +259,19 @@
     const pos = getOverlayPosition(squareNum, flipped);
 
     const overlay = document.createElement('div');
-    const quadrantColor = getQuadrantColor(squareNum);
-    overlay.className = 'coord-overlay ' + quadrantColor;
+    overlay.className = 'coord-overlay';
+
+    // Apply unique square color
+    const bgColor = getSquareColor(squareNum);
+    const textColor = getTextColor(bgColor);
+    overlay.style.backgroundColor = bgColor;
 
     const mode = COORD_MODES[currentCoordMode];
 
     if (mode === 'full' || mode === 'file') {
       const fileSpan = document.createElement('span');
       fileSpan.className = 'coord-file';
+      fileSpan.style.color = textColor;
       fileSpan.textContent = coord[0];
       overlay.appendChild(fileSpan);
     }
@@ -233,6 +279,7 @@
     if (mode === 'full' || mode === 'rank') {
       const rankSpan = document.createElement('span');
       rankSpan.className = 'coord-rank';
+      rankSpan.style.color = textColor;
       rankSpan.textContent = coord[1];
       overlay.appendChild(rankSpan);
     }
@@ -243,79 +290,122 @@
 
     setTimeout(() => {
       overlay.classList.add('fade-out');
-    }, 700);
+    }, 1500);
 
     setTimeout(() => {
       overlay.remove();
-    }, 1100);
+    }, 2000);
   }
 
-  // Create all overlay containers for different modes
+  // Create all overlay containers
   function createOverlays(board) {
-    // Mode 1: 4 Quadrants (disabled but kept for reference)
-    const quadContainer = document.createElement('div');
-    quadContainer.className = 'overlay-container overlay-quadrants';
-    ['red', 'green', 'purple', 'blue'].forEach((color) => {
-      const div = document.createElement('div');
-      div.className = 'quadrant quadrant-' + color;
-      quadContainer.appendChild(div);
-    });
-    board.appendChild(quadContainer);
+    const flipped = isBoardFlipped(board);
 
-    // Mode 2: Flanks (Queenside vs Kingside) - default ON
-    const flankContainer = document.createElement('div');
-    flankContainer.className = 'overlay-container overlay-flanks visible';
-    ['queenside', 'kingside'].forEach((side) => {
-      const div = document.createElement('div');
-      div.className = 'flank flank-' + side;
-      flankContainer.appendChild(div);
-    });
-    board.appendChild(flankContainer);
+    // Flanks overlay (queenside vs kingside - 2 color halves)
+    const flanksContainer = document.createElement('div');
+    flanksContainer.className = 'overlay-container overlay-flanks';
+    const queenside = document.createElement('div');
+    queenside.className = 'flank flank-queenside';
+    const kingside = document.createElement('div');
+    kingside.className = 'flank flank-kingside';
+    flanksContainer.appendChild(queenside);
+    flanksContainer.appendChild(kingside);
+    board.appendChild(flanksContainer);
 
-    // Mode 3: Ranks (Your half vs Their half)
-    const rankContainer = document.createElement('div');
-    rankContainer.className = 'overlay-container overlay-ranks';
-    ['lower', 'upper'].forEach((half) => {
-      const div = document.createElement('div');
-      div.className = 'rank-half rank-' + half;
-      rankContainer.appendChild(div);
-    });
-    board.appendChild(rankContainer);
+    // Ranks overlay (your half vs their half - 2 color halves)
+    const ranksContainer = document.createElement('div');
+    ranksContainer.className = 'overlay-container overlay-ranks';
+    const lowerHalf = document.createElement('div');
+    lowerHalf.className = 'rank-half rank-lower';
+    const upperHalf = document.createElement('div');
+    upperHalf.className = 'rank-half rank-upper';
+    ranksContainer.appendChild(lowerHalf);
+    ranksContainer.appendChild(upperHalf);
+    board.appendChild(ranksContainer);
 
-    // Mode 4: Files (8 stripes)
-    const fileContainer = document.createElement('div');
-    fileContainer.className = 'overlay-container overlay-files';
-    for (let i = 1; i <= 8; i++) {
-      const div = document.createElement('div');
-      div.className = 'file-stripe file-' + i;
-      fileContainer.appendChild(div);
+    // Colors overlay (64 colors with A1, B2, etc. labels)
+    const colorContainer = document.createElement('div');
+    colorContainer.className = 'overlay-container overlay-colors visible';
+
+    // Create 64 color squares
+    for (let file = 1; file <= 8; file++) {
+      for (let rank = 1; rank <= 8; rank++) {
+        const squareNum = file * 10 + rank;
+        const fileChar = 'ABCDEFGH'[file - 1];
+        const bgColor = getSquareColor(squareNum);
+        const textColor = getTextColor(bgColor);
+
+        // Position calculation
+        let left, bottom;
+        if (flipped) {
+          left = (8 - file) * 12.5;
+          bottom = (8 - rank) * 12.5;
+        } else {
+          left = (file - 1) * 12.5;
+          bottom = (rank - 1) * 12.5;
+        }
+
+        // Color square with full coordinate
+        const colorDiv = document.createElement('div');
+        colorDiv.className = 'color-square';
+        colorDiv.style.backgroundColor = bgColor;
+        colorDiv.style.color = textColor;
+        colorDiv.textContent = fileChar + rank;
+        colorDiv.style.left = left + '%';
+        colorDiv.style.bottom = bottom + '%';
+        colorContainer.appendChild(colorDiv);
+      }
     }
-    board.appendChild(fileContainer);
 
-    // Mode 5: Center vs Edge
-    const centerContainer = document.createElement('div');
-    centerContainer.className = 'overlay-container overlay-center';
-    const edge = document.createElement('div');
-    edge.className = 'center-edge';
-    const center = document.createElement('div');
-    center.className = 'center-core';
-    centerContainer.appendChild(edge);
-    centerContainer.appendChild(center);
-    board.appendChild(centerContainer);
+    board.appendChild(colorContainer);
+
+    // Update overlay positions when board flips
+    const flipObserver = new MutationObserver(() => {
+      updateColorOverlayPositions(board, colorContainer);
+    });
+    flipObserver.observe(board, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // Update color overlay positions when board flips
+  function updateColorOverlayPositions(board, container) {
+    const flipped = isBoardFlipped(board);
+    const squares = container.querySelectorAll('.color-square');
+    let index = 0;
+
+    for (let file = 1; file <= 8; file++) {
+      for (let rank = 1; rank <= 8; rank++) {
+        const div = squares[index++];
+        if (!div) continue;
+        let left, bottom;
+        if (flipped) {
+          left = (8 - file) * 12.5;
+          bottom = (8 - rank) * 12.5;
+        } else {
+          left = (file - 1) * 12.5;
+          bottom = (rank - 1) * 12.5;
+        }
+        div.style.left = left + '%';
+        div.style.bottom = bottom + '%';
+      }
+    }
   }
 
   // Update which overlay is visible based on current mode
   function updateOverlayMode() {
     const mode = MODES[currentMode];
 
+    // Hide all overlays first
     document.querySelectorAll('.overlay-container').forEach((container) => {
       container.classList.remove('visible');
     });
 
-    if (mode !== 'off') {
-      document.querySelectorAll('.overlay-' + mode).forEach((container) => {
-        container.classList.add('visible');
-      });
+    // Show the appropriate overlay
+    if (mode === 'flanks') {
+      document.querySelectorAll('.overlay-flanks').forEach((c) => c.classList.add('visible'));
+    } else if (mode === 'ranks') {
+      document.querySelectorAll('.overlay-ranks').forEach((c) => c.classList.add('visible'));
+    } else if (mode === 'colors') {
+      document.querySelectorAll('.overlay-colors').forEach((c) => c.classList.add('visible'));
     }
 
     console.log('[Coord Trainer] Mode:', mode);
@@ -478,7 +568,7 @@
         el.setAttribute('x', '0');
       }
 
-      // File letters (a-h): set y=100, subtract 1.15 from x (only once)
+      // File letters (a-h): set y=100, adjust x
       if (/^[a-hA-H]$/.test(text)) {
         el.setAttribute('y', '100');
         if (!el.dataset.xFixed) {

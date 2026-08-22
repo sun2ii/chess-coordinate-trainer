@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Chess Coordinate Trainer",
-  "version": "1.0",
-  "description": "Shows destination square coordinates when pieces move on Chess.com",
+  "version": "1.1",
+  "description": "Learn chess coordinates with color-coded squares (ROYGBIVP files, light-to-dark ranks). Press Q to cycle overlays, W for coordinate modes, E for exam mode.",
   "content_scripts": [
     {
       "matches": ["https://www.chess.com/*"],
