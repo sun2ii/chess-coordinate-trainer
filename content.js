@@ -59,6 +59,7 @@
   let examInputEl = null;
   let examTargetCoord = null;
   let examBoard = null;
+  let examOverlay = null;
 
   // Status tooltip
   let tooltipEl = null;
@@ -145,27 +146,75 @@
     examModalEl.className = 'exam-modal';
     examModalEl.innerHTML =
       '<div class="exam-content">' +
-      '<div class="exam-prompt">What square?</div>' +
+      '<div class="exam-prompt">square?</div>' +
       '<input type="text" class="exam-input" maxlength="2" autocomplete="off" spellcheck="false">' +
       '<div class="exam-feedback"></div>' +
+      '<div class="exam-keys">' +
+      '<div>aq bw ce dr</div>' +
+      '<div>et fy gu hi</div>' +
+      '</div>' +
       '</div>';
     document.body.appendChild(examModalEl);
 
     examInputEl = examModalEl.querySelector('.exam-input');
 
+    // Keyboard mappings for easier input:
+    // Files: qwer→ABCD, tyui→EFGH
+    // Ranks: 1234→1234, 5678→5678
+    const KEY_TO_FILE = {
+      'q': 'A', 'w': 'B', 'e': 'C', 'r': 'D',
+      't': 'E', 'y': 'F', 'u': 'G', 'i': 'H',
+    };
+    const KEY_TO_RANK = {
+      '1': '1', '2': '2', '3': '3', '4': '4',
+      '5': '5', '6': '6', '7': '7', '8': '8',
+    };
+
     examInputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         checkExamAnswer();
+        e.preventDefault();
+        return;
       }
       if (e.key === 'Escape') {
-        // Allow escape to cancel (optional - remove if you want 100% strict)
+        hideExamModal();
+        e.preventDefault();
+        return;
       }
+
+      const key = e.key.toLowerCase();
+      const currentVal = examInputEl.value;
+
+      // Allow replacing first character with a new file key
+      if (currentVal.length === 1 && KEY_TO_FILE[key]) {
+        examInputEl.value = KEY_TO_FILE[key];
+        e.preventDefault();
+        return;
+      }
+
+      // First character: file
+      if (currentVal.length === 0 && KEY_TO_FILE[key]) {
+        examInputEl.value = KEY_TO_FILE[key];
+        e.preventDefault();
+        return;
+      }
+
+      // Second character: rank
+      if (currentVal.length === 1 && KEY_TO_RANK[key]) {
+        examInputEl.value = currentVal + KEY_TO_RANK[key];
+        e.preventDefault();
+        setTimeout(checkExamAnswer, 100);
+        return;
+      }
+
+      // Block other keys
+      e.preventDefault();
     });
 
-    examInputEl.addEventListener('input', () => {
-      // Auto-submit when 2 characters entered
-      if (examInputEl.value.length === 2) {
-        setTimeout(checkExamAnswer, 100);
+    // Keep focus on input when clicking anywhere
+    examInputEl.addEventListener('blur', () => {
+      if (examModalEl && examModalEl.classList.contains('visible')) {
+        setTimeout(() => examInputEl.focus(), 0);
       }
     });
   }
@@ -218,9 +267,22 @@
     if (examBoard) {
       examBoard.style.pointerEvents = 'auto';
     }
+    if (examOverlay) {
+      examOverlay.remove();
+      examOverlay = null;
+    }
     examTargetCoord = null;
     examBoard = null;
   }
+
+  // Global Escape handler for exam modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && examModalEl && examModalEl.classList.contains('visible')) {
+      hideExamModal();
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
 
   // Glow the side coordinate labels (file letter and rank number)
   function glowSideCoordinates(squareNum) {
@@ -246,12 +308,6 @@
     const coord = squareToAlgebraic(squareNum);
     if (!coord) return;
 
-    // Exam mode: show modal instead of overlay
-    if (examMode) {
-      showExamModal(board, coord);
-      return;
-    }
-
     // Glow the side labels
     glowSideCoordinates(squareNum);
 
@@ -265,6 +321,16 @@
     const bgColor = getSquareColor(squareNum);
     const textColor = getTextColor(bgColor);
     overlay.style.backgroundColor = bgColor;
+
+    // Exam mode: show colored square without label, keep visible
+    if (examMode) {
+      overlay.style.left = pos.left;
+      overlay.style.bottom = pos.bottom;
+      board.appendChild(overlay);
+      examOverlay = overlay;
+      showExamModal(board, coord);
+      return;
+    }
 
     const mode = COORD_MODES[currentCoordMode];
 
@@ -325,7 +391,7 @@
 
     // Colors overlay (64 colors with A1, B2, etc. labels)
     const colorContainer = document.createElement('div');
-    colorContainer.className = 'overlay-container overlay-colors visible';
+    colorContainer.className = 'overlay-container overlay-colors';
 
     // Create 64 color squares
     for (let file = 1; file <= 8; file++) {
@@ -506,9 +572,12 @@
     return true;
   }
 
-  // Right-click to show coordinate
+  // Right-click to show coordinate (but not exam mode)
   function setupRightClick(board) {
     board.addEventListener('contextmenu', (e) => {
+      // Skip if exam mode is on - exam only triggers on piece moves
+      if (examMode) return;
+
       const rect = board.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
