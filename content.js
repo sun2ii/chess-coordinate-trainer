@@ -47,14 +47,21 @@
   // ranks = your half (orange) vs their half (blue) - bottom/top split
   // colors = 64-color overlay with full coordinates (A1, B2, etc.)
   const MODES = ['off', 'flanks', 'ranks', 'colors'];
-  let currentMode = 0; // Start with off
+  let currentMode = MODES.indexOf(CONFIG.defaultMode) !== -1 ? MODES.indexOf(CONFIG.defaultMode) : 0;
 
   // Coordinate display modes: W cycles through these
   const COORD_MODES = ['full', 'file', 'rank']; // A1, A, 1
-  let currentCoordMode = 0;
+  let currentCoordMode = COORD_MODES.indexOf(CONFIG.defaultCoordMode) !== -1 ? COORD_MODES.indexOf(CONFIG.defaultCoordMode) : 0;
 
   // Exam mode: E to toggle
-  let examMode = false;
+  let examMode = CONFIG.defaultExamMode;
+
+  // File display mode: R to toggle between 'abc' (ABCDEFGH) and 'numeric' (12345678)
+  let numericMode = CONFIG.defaultFileMode === 'numeric';
+  const FILE_DISPLAY = {
+    abc: 'ABCDEFGH',
+    numeric: '12345678',
+  };
   let examModalEl = null;
   let examInputEl = null;
   let examTargetCoord = null;
@@ -74,20 +81,24 @@
 
     const overlayMode = MODES[currentMode];
     const coordMode = COORD_MODES[currentCoordMode];
-    const coordLabel = coordMode === 'full' ? 'A1' : coordMode === 'file' ? 'A' : '1';
+    const sampleFile = numericMode ? '1' : 'A';
+    const sampleRank = '1';
+    const coordLabel = coordMode === 'full' ? sampleFile + sampleRank : coordMode === 'file' ? sampleFile : sampleRank;
 
     const examLabel = examMode ? 'on' : 'off';
+    const fileLabel = numericMode ? '12345678' : 'abc';
     tooltipEl.innerHTML =
       '<span><span class="label">Q:</span><span class="value">' + overlayMode + '</span></span>' +
       '<span><span class="label">W:</span><span class="value">' + coordLabel + '</span></span>' +
-      '<span><span class="label">E:</span><span class="value">' + examLabel + '</span></span>';
+      '<span><span class="label">E:</span><span class="value">' + examLabel + '</span></span>' +
+      '<span><span class="label">R:</span><span class="value">' + fileLabel + '</span></span>';
 
     tooltipEl.classList.add('visible');
 
     if (tooltipTimeout) clearTimeout(tooltipTimeout);
     tooltipTimeout = setTimeout(() => {
       tooltipEl.classList.remove('visible');
-    }, 1200);
+    }, CONFIG.tooltipDuration);
   }
 
   // Convert Chess.com square class to algebraic notation
@@ -98,6 +109,18 @@
     if (file < 1 || file > 8 || rank < 1 || rank > 8) return null;
     const fileChar = String.fromCharCode(64 + file); // 1→A, 2→B, etc.
     return fileChar + rank;
+  }
+
+  // Get display character for a file (1-8) based on current mode
+  function getFileChar(fileIndex) {
+    const chars = numericMode ? FILE_DISPLAY.numeric : FILE_DISPLAY.abc;
+    return chars[fileIndex - 1];
+  }
+
+  // Get full coordinate display (e.g., "A1" or "1.1")
+  function getCoordDisplay(fileIndex, rank) {
+    const fileChar = getFileChar(fileIndex);
+    return numericMode ? fileChar + '.' + rank : fileChar + rank;
   }
 
   // Extract square number from element's class list
@@ -147,28 +170,28 @@
     examModalEl.innerHTML =
       '<div class="exam-content">' +
       '<div class="exam-prompt">square?</div>' +
-      '<input type="text" class="exam-input" maxlength="2" autocomplete="off" spellcheck="false">' +
+      '<input type="text" class="exam-input" maxlength="3" autocomplete="off" spellcheck="false">' +
       '<div class="exam-feedback"></div>' +
-      '<div class="exam-keys">' +
-      '<div>aq bw ce dr</div>' +
-      '<div>et fy gu hi</div>' +
-      '</div>' +
       '</div>';
     document.body.appendChild(examModalEl);
 
     examInputEl = examModalEl.querySelector('.exam-input');
 
-    // Keyboard mappings for easier input:
-    // Files: qwer→ABCD, tyui→EFGH
-    // Ranks: 1234→1234, 5678→5678
-    const KEY_TO_FILE = {
-      'q': 'A', 'w': 'B', 'e': 'C', 'r': 'D',
-      't': 'E', 'y': 'F', 'u': 'G', 'i': 'H',
+    // Keyboard mappings based on mode:
+    // ABC mode: a-h → A-H
+    // Numeric mode: 1-8 → 1-8 (for files)
+    const ABC_FILES = {
+      'a': 'A', 'b': 'B', 'c': 'C', 'd': 'D',
+      'e': 'E', 'f': 'F', 'g': 'G', 'h': 'H',
     };
-    const KEY_TO_RANK = {
+    const NUMERIC_FILES = {
       '1': '1', '2': '2', '3': '3', '4': '4',
       '5': '5', '6': '6', '7': '7', '8': '8',
     };
+
+    function getFileMap() {
+      return numericMode ? NUMERIC_FILES : ABC_FILES;
+    }
 
     examInputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -184,27 +207,46 @@
 
       const key = e.key.toLowerCase();
       const currentVal = examInputEl.value;
+      const fileMap = getFileMap();
+      const isRankKey = /^[1-8]$/.test(key);
 
-      // Allow replacing first character with a new file key
-      if (currentVal.length === 1 && KEY_TO_FILE[key]) {
-        examInputEl.value = KEY_TO_FILE[key];
-        e.preventDefault();
-        return;
-      }
+      if (numericMode) {
+        // Numeric mode: both file and rank are 1-8
+        // Display as "4.2" for file 4, rank 2
+        if (currentVal.length === 0 && isRankKey) {
+          examInputEl.value = key + '.';
+          e.preventDefault();
+          return;
+        }
+        if (currentVal.length === 2 && currentVal[1] === '.' && isRankKey) {
+          examInputEl.value = currentVal + key;
+          e.preventDefault();
+          setTimeout(checkExamAnswer, 100);
+          return;
+        }
+      } else {
+        // ABC mode: file is a-h, rank is 1-8
+        // Allow replacing first character with a new file key
+        if (currentVal.length === 1 && fileMap[key]) {
+          examInputEl.value = fileMap[key];
+          e.preventDefault();
+          return;
+        }
 
-      // First character: file
-      if (currentVal.length === 0 && KEY_TO_FILE[key]) {
-        examInputEl.value = KEY_TO_FILE[key];
-        e.preventDefault();
-        return;
-      }
+        // First character: file
+        if (currentVal.length === 0 && fileMap[key]) {
+          examInputEl.value = fileMap[key];
+          e.preventDefault();
+          return;
+        }
 
-      // Second character: rank
-      if (currentVal.length === 1 && KEY_TO_RANK[key]) {
-        examInputEl.value = currentVal + KEY_TO_RANK[key];
-        e.preventDefault();
-        setTimeout(checkExamAnswer, 100);
-        return;
+        // Second character: rank
+        if (currentVal.length === 1 && isRankKey) {
+          examInputEl.value = currentVal + key;
+          e.preventDefault();
+          setTimeout(checkExamAnswer, 100);
+          return;
+        }
       }
 
       // Block other keys
@@ -243,7 +285,22 @@
     const answer = examInputEl.value.toUpperCase().trim();
     const feedback = examModalEl.querySelector('.exam-feedback');
 
-    if (answer === examTargetCoord) {
+    // Convert target coord to display format based on mode
+    // examTargetCoord is always ABC format like "E4"
+    const targetFile = examTargetCoord[0]; // A-H
+    const targetRank = examTargetCoord[1]; // 1-8
+    const fileIndex = targetFile.charCodeAt(0) - 64; // A=1, B=2, etc.
+
+    let displayTarget;
+    if (numericMode) {
+      // Numeric mode: A1 → 1.1, E4 → 5.4
+      displayTarget = fileIndex + '.' + targetRank;
+    } else {
+      // ABC mode: keep as is
+      displayTarget = examTargetCoord;
+    }
+
+    if (answer === displayTarget.toUpperCase()) {
       // Correct
       feedback.textContent = 'Correct!';
       feedback.className = 'exam-feedback correct';
@@ -284,17 +341,30 @@
     }
   }, true);
 
-  // Glow the side coordinate labels (file letter and rank number)
+  // Glow the side coordinate labels (file and rank)
   function glowSideCoordinates(squareNum) {
     const coord = squareToAlgebraic(squareNum);
     if (!coord) return;
 
-    const fileLetter = coord[0].toLowerCase();
-    const rankNumber = coord[1];
+    const fileLetter = coord[0].toLowerCase(); // a-h
+    const rankNumber = coord[1]; // 1-8
+
+    // In numeric mode, file is displayed as 1-8 (a=1, b=2, etc.)
+    const fileDisplay = numericMode
+      ? String(fileLetter.charCodeAt(0) - 96) // a=1, b=2, ..., h=8
+      : fileLetter;
 
     document.querySelectorAll('.coordinate-grey').forEach((el) => {
       const text = el.textContent.trim().toLowerCase();
-      if (text === fileLetter || text === rankNumber) {
+      // Check if this element is a file label (has originalFile dataset) or rank label
+      const isFileLabel = el.dataset.originalFile;
+
+      if (isFileLabel && text === fileDisplay) {
+        el.classList.add('coord-glow');
+        setTimeout(() => {
+          el.classList.remove('coord-glow');
+        }, 1500);
+      } else if (!isFileLabel && text === rankNumber) {
         el.classList.add('coord-glow');
         setTimeout(() => {
           el.classList.remove('coord-glow');
@@ -307,6 +377,9 @@
   function showCoordinateOverlay(board, squareNum) {
     const coord = squareToAlgebraic(squareNum);
     if (!coord) return;
+
+    // Remove any existing coordinate overlays immediately
+    board.querySelectorAll('.coord-overlay').forEach(el => el.remove());
 
     // Glow the side labels
     glowSideCoordinates(squareNum);
@@ -333,12 +406,16 @@
     }
 
     const mode = COORD_MODES[currentCoordMode];
+    const fileIndex = coord[0].charCodeAt(0) - 64; // A=1, B=2, etc.
+    const displayFile = getFileChar(fileIndex);
+    const rank = coord[1];
 
     if (mode === 'full' || mode === 'file') {
       const fileSpan = document.createElement('span');
       fileSpan.className = 'coord-file';
       fileSpan.style.color = textColor;
-      fileSpan.textContent = coord[0];
+      // In numeric mode with full display, add dot after file
+      fileSpan.textContent = (numericMode && mode === 'full') ? displayFile + '.' : displayFile;
       overlay.appendChild(fileSpan);
     }
 
@@ -346,7 +423,7 @@
       const rankSpan = document.createElement('span');
       rankSpan.className = 'coord-rank';
       rankSpan.style.color = textColor;
-      rankSpan.textContent = coord[1];
+      rankSpan.textContent = rank;
       overlay.appendChild(rankSpan);
     }
     overlay.style.left = pos.left;
@@ -356,11 +433,11 @@
 
     setTimeout(() => {
       overlay.classList.add('fade-out');
-    }, 1500);
+    }, CONFIG.overlayDuration);
 
     setTimeout(() => {
       overlay.remove();
-    }, 2000);
+    }, CONFIG.overlayDuration + CONFIG.overlayFadeDuration);
   }
 
   // Create all overlay containers
@@ -397,7 +474,7 @@
     for (let file = 1; file <= 8; file++) {
       for (let rank = 1; rank <= 8; rank++) {
         const squareNum = file * 10 + rank;
-        const fileChar = 'ABCDEFGH'[file - 1];
+        const fileChar = getFileChar(file);
         const bgColor = getSquareColor(squareNum);
         const textColor = getTextColor(bgColor);
 
@@ -414,9 +491,11 @@
         // Color square with full coordinate
         const colorDiv = document.createElement('div');
         colorDiv.className = 'color-square';
+        colorDiv.dataset.file = file;
+        colorDiv.dataset.rank = rank;
         colorDiv.style.backgroundColor = bgColor;
         colorDiv.style.color = textColor;
-        colorDiv.textContent = fileChar + rank;
+        colorDiv.textContent = getCoordDisplay(file, rank);
         colorDiv.style.left = left + '%';
         colorDiv.style.bottom = bottom + '%';
         colorContainer.appendChild(colorDiv);
@@ -454,6 +533,17 @@
         div.style.bottom = bottom + '%';
       }
     }
+  }
+
+  // Update color overlay labels when file display mode changes
+  function updateColorOverlayLabels() {
+    document.querySelectorAll('.color-square').forEach((div) => {
+      const file = parseInt(div.dataset.file, 10);
+      const rank = parseInt(div.dataset.rank, 10);
+      if (file && rank) {
+        div.textContent = getCoordDisplay(file, rank);
+      }
+    });
   }
 
   // Update which overlay is visible based on current mode
@@ -624,6 +714,37 @@
         showStatusTooltip();
         console.log('[Coord Trainer] Exam mode:', examMode ? 'ON' : 'OFF');
       }
+
+      if (e.key === 'r' || e.key === 'R') {
+        numericMode = !numericMode;
+        updateBoardFileLabels();
+        updateColorOverlayLabels();
+        showStatusTooltip();
+        console.log('[Coord Trainer] File display:', numericMode ? 'NUMERIC' : 'ABC');
+      }
+    });
+  }
+
+  // Map ABC to numeric for board edge labels (a=1., b=2., ..., h=8.)
+  const ABC_TO_NUMERIC = { a: '1.', b: '2.', c: '3.', d: '4.', e: '5.', f: '6.', g: '7.', h: '8.' };
+
+  // Update Chess.com board edge file labels based on numericMode
+  function updateBoardFileLabels() {
+    document.querySelectorAll('.coordinate-grey').forEach((el) => {
+      const text = el.textContent.trim().toLowerCase();
+      // Only convert if it's a valid source character
+      // Use dataset to track original value and prevent double-conversion
+      if (!el.dataset.originalFile) {
+        // First time seeing this element - store original if it's a file letter
+        if (/^[a-h]$/.test(text)) {
+          el.dataset.originalFile = text;
+        }
+      }
+
+      const original = el.dataset.originalFile;
+      if (original) {
+        el.textContent = numericMode ? ABC_TO_NUMERIC[original] : original;
+      }
     });
   }
 
@@ -632,13 +753,18 @@
     document.querySelectorAll('.coordinate-grey').forEach((el) => {
       const text = el.textContent.trim();
 
+      // Use dataset.originalFile to identify file labels (set by updateBoardFileLabels)
+      // If not set yet, check if it's a letter (original Chess.com format)
+      const isFileLabel = el.dataset.originalFile || /^[a-hA-H]$/.test(text);
+      const isRankLabel = /^[1-8]$/.test(text) && !el.dataset.originalFile;
+
       // Rank numbers (1-8): set x=0
-      if (/^[1-8]$/.test(text)) {
+      if (isRankLabel) {
         el.setAttribute('x', '0');
       }
 
-      // File letters (a-h): set y=100, adjust x
-      if (/^[a-hA-H]$/.test(text)) {
+      // File labels: set y=100, adjust x
+      if (isFileLabel) {
         el.setAttribute('y', '100');
         if (!el.dataset.xFixed) {
           const currentX = parseFloat(el.getAttribute('x')) || 0;
@@ -652,9 +778,10 @@
   // Run fix a few times at startup to catch Chess.com's delayed rendering
   function initCoordinateFixes() {
     fixCoordinates();
-    setTimeout(fixCoordinates, 500);
-    setTimeout(fixCoordinates, 1500);
-    setTimeout(fixCoordinates, 3000);
+    if (numericMode) updateBoardFileLabels();
+    setTimeout(() => { fixCoordinates(); if (numericMode) updateBoardFileLabels(); }, 500);
+    setTimeout(() => { fixCoordinates(); if (numericMode) updateBoardFileLabels(); }, 1500);
+    setTimeout(() => { fixCoordinates(); if (numericMode) updateBoardFileLabels(); }, 3000);
   }
 
   // Initialize
