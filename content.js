@@ -117,10 +117,10 @@
     return chars[fileIndex - 1];
   }
 
-  // Get full coordinate display (e.g., "A1" or "1.1")
+  // Get full coordinate display (e.g., "A1" or "11")
   function getCoordDisplay(fileIndex, rank) {
     const fileChar = getFileChar(fileIndex);
-    return numericMode ? fileChar + '.' + rank : fileChar + rank;
+    return fileChar + rank;
   }
 
   // Extract square number from element's class list
@@ -212,13 +212,13 @@
 
       if (numericMode) {
         // Numeric mode: both file and rank are 1-8
-        // Display as "4.2" for file 4, rank 2
+        // Display as "42" for file 4, rank 2
         if (currentVal.length === 0 && isRankKey) {
-          examInputEl.value = key + '.';
+          examInputEl.value = key;
           e.preventDefault();
           return;
         }
-        if (currentVal.length === 2 && currentVal[1] === '.' && isRankKey) {
+        if (currentVal.length === 1 && isRankKey) {
           examInputEl.value = currentVal + key;
           e.preventDefault();
           setTimeout(checkExamAnswer, 100);
@@ -293,8 +293,8 @@
 
     let displayTarget;
     if (numericMode) {
-      // Numeric mode: A1 → 1.1, E4 → 5.4
-      displayTarget = fileIndex + '.' + targetRank;
+      // Numeric mode: A1 → 11, E4 → 54
+      displayTarget = fileIndex + '' + targetRank;
     } else {
       // ABC mode: keep as is
       displayTarget = examTargetCoord;
@@ -414,8 +414,7 @@
       const fileSpan = document.createElement('span');
       fileSpan.className = 'coord-file';
       fileSpan.style.color = textColor;
-      // In numeric mode with full display, add dot after file
-      fileSpan.textContent = (numericMode && mode === 'full') ? displayFile + '.' : displayFile;
+      fileSpan.textContent = displayFile;
       overlay.appendChild(fileSpan);
     }
 
@@ -725,8 +724,8 @@
     });
   }
 
-  // Map ABC to numeric for board edge labels (a=1., b=2., ..., h=8.)
-  const ABC_TO_NUMERIC = { a: '1.', b: '2.', c: '3.', d: '4.', e: '5.', f: '6.', g: '7.', h: '8.' };
+  // Map ABC to numeric for board edge labels (a=10, b=20, ..., h=80)
+  const ABC_TO_NUMERIC = { a: '10', b: '20', c: '30', d: '40', e: '50', f: '60', g: '70', h: '80' };
 
   // Update Chess.com board edge file labels based on numericMode
   function updateBoardFileLabels() {
