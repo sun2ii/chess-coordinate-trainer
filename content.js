@@ -718,6 +718,11 @@
         numericMode = !numericMode;
         updateBoardFileLabels();
         updateColorOverlayLabels();
+        // Reset mode tracking so all moves get reprocessed
+        document.querySelectorAll('[data-coord-trainer-mode]').forEach((el) => {
+          delete el.dataset.coordTrainerMode;
+        });
+        updateMoveListNotation();
         showStatusTooltip();
         console.log('[Coord Trainer] File display:', numericMode ? 'NUMERIC' : 'ABC');
       }
@@ -726,6 +731,134 @@
 
   // Map ABC to numeric for board edge labels (a=10, b=20, ..., h=80)
   const ABC_TO_NUMERIC = { a: '10', b: '20', c: '30', d: '40', e: '50', f: '60', g: '70', h: '80' };
+
+  // Map files to numeric for move notation (a=1, b=2, ..., h=8)
+  const FILE_TO_NUM = { a: '1', b: '2', c: '3', d: '4', e: '5', f: '6', g: '7', h: '8' };
+
+  // Convert algebraic notation to numeric notation
+  // d4 → 44, Nf3 → N63, Bxe4 → Bx54, O-O → O-O, exd5 → 5x45
+  function convertMoveToNumeric(move) {
+    if (!move || typeof move !== 'string') return move;
+
+    // Don't convert castling
+    if (move === 'O-O' || move === 'O-O-O' || move === '0-0' || move === '0-0-0') {
+      return move;
+    }
+
+    // Convert squares: letter followed by digit (a-h)(1-8)
+    // Handle: d4, Nf3, Bxe4, exd5, Qh4+, Rfe1#, etc.
+    return move.replace(/([a-h])([1-8])/g, (match, file, rank) => {
+      return FILE_TO_NUM[file] + rank;
+    });
+  }
+
+  // Convert numeric notation back to algebraic
+  function convertMoveToAlgebraic(move) {
+    if (!move || typeof move !== 'string') return move;
+
+    // Don't convert castling
+    if (move === 'O-O' || move === 'O-O-O' || move === '0-0' || move === '0-0-0') {
+      return move;
+    }
+
+    const NUM_TO_FILE = { '1': 'a', '2': 'b', '3': 'c', '4': 'd', '5': 'e', '6': 'f', '7': 'g', '8': 'h' };
+
+    // Convert numeric squares back: two digits where first is 1-8 (file) and second is 1-8 (rank)
+    // 44 → d4, N63 → Nf3, etc.
+    return move.replace(/([1-8])([1-8])/g, (match, file, rank) => {
+      return NUM_TO_FILE[file] + rank;
+    });
+  }
+
+  // Store original move text to allow toggling back
+  const originalMoveText = new WeakMap();
+
+  // Convert move list notation based on numericMode
+  function convertMoveNotation(element) {
+    // Store original if not already stored
+    if (!originalMoveText.has(element)) {
+      originalMoveText.set(element, element.textContent);
+    }
+
+    const original = originalMoveText.get(element);
+    element.textContent = numericMode ? convertMoveToNumeric(original) : original;
+  }
+
+  // Find and convert all move elements in the move list
+  function updateMoveListNotation() {
+    // Chess.com move list selectors (multiple possible structures)
+    const moveSelectors = [
+      // Live game / analysis
+      '.move-text-component',
+      '.node-highlight-content',
+      // PGN viewer
+      '.moves-notation .move',
+      // Other possible selectors
+      '[data-ply] .move',
+      '.move-san',
+      '.san',
+    ];
+
+    const selector = moveSelectors.join(', ');
+    const moveElements = document.querySelectorAll(selector);
+
+    moveElements.forEach((el) => {
+      // Skip if already processed in this mode state
+      const processed = el.dataset.coordTrainerMode;
+      const currentModeStr = numericMode ? 'numeric' : 'abc';
+      if (processed === currentModeStr) return;
+
+      convertMoveNotation(el);
+      el.dataset.coordTrainerMode = currentModeStr;
+    });
+  }
+
+  // Observe move list for new moves being added
+  function observeMoveList() {
+    // Find move list containers
+    const containerSelectors = [
+      '.move-list-component',
+      '.moves-container',
+      '.notation-component',
+      '.pgn-viewer',
+      '.vertical-move-list',
+      '.horizontal-move-list',
+    ];
+
+    const containers = document.querySelectorAll(containerSelectors.join(', '));
+
+    containers.forEach((container) => {
+      if (container.dataset.coordTrainerMoveListObserver) return;
+      container.dataset.coordTrainerMoveListObserver = 'true';
+
+      const observer = new MutationObserver(() => {
+        updateMoveListNotation();
+      });
+
+      observer.observe(container, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+
+      console.log('[Coord Trainer] Observing move list:', container);
+    });
+
+    // Also observe body for new move list containers appearing
+    if (!document.body.dataset.coordTrainerMoveListBodyObserver) {
+      document.body.dataset.coordTrainerMoveListBodyObserver = 'true';
+
+      const bodyObserver = new MutationObserver(() => {
+        observeMoveList();
+        updateMoveListNotation();
+      });
+
+      bodyObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
+  }
 
   // Update Chess.com board edge file labels based on numericMode
   function updateBoardFileLabels() {
@@ -778,9 +911,26 @@
   function initCoordinateFixes() {
     fixCoordinates();
     if (numericMode) updateBoardFileLabels();
-    setTimeout(() => { fixCoordinates(); if (numericMode) updateBoardFileLabels(); }, 500);
-    setTimeout(() => { fixCoordinates(); if (numericMode) updateBoardFileLabels(); }, 1500);
-    setTimeout(() => { fixCoordinates(); if (numericMode) updateBoardFileLabels(); }, 3000);
+    observeMoveList();
+    updateMoveListNotation();
+    setTimeout(() => {
+      fixCoordinates();
+      if (numericMode) updateBoardFileLabels();
+      observeMoveList();
+      updateMoveListNotation();
+    }, 500);
+    setTimeout(() => {
+      fixCoordinates();
+      if (numericMode) updateBoardFileLabels();
+      observeMoveList();
+      updateMoveListNotation();
+    }, 1500);
+    setTimeout(() => {
+      fixCoordinates();
+      if (numericMode) updateBoardFileLabels();
+      observeMoveList();
+      updateMoveListNotation();
+    }, 3000);
   }
 
   // Initialize
